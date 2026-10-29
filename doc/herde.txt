@@ -1,0 +1,212 @@
+*herde.txt*   Agent workspaces and attention in Neovim
+
+herde.nvim                                                        *herde*
+
+Requires Neovim 0.10+. Herdr adapter targets CLI 0.9.5 / protocol 22.
+Standalone Neovim uses the default Herdr session. Configure herdr.session
+for a named session, or herdr.machine for a remote profile.
+Pi agents are supported through Herdr. LazyVim setup uses its existing Snacks Picker.
+
+SETUP                                                      *herde-setup*
+>
+  require('herde').setup({ backend = 'herdr' })
+<
+Use backend='demo' to explore without real agents. setup replaces an existing
+instance; teardown stops jobs/timers and closes plugin windows.
+
+COMMANDS                                                *herde-commands*
+
+:Herde [action]       Default action: toggle.
+
+  toggle             Open/close right sidebar, preserving editor focus.
+  focus-sidebar      Enter sidebar.
+  agents             Search agents; Enter focuses the selected Herdr pane.
+  workspaces         Filter workspaces, or show all.
+  inbox              Open attention inbox.
+  attention          Fuzzy-search active attention events.
+  next-attention     Select next agent needing attention.
+  previous           Toggle previous live agent.
+  next               Cycle agents in selected workspace.
+  preview            Read selected agent output.
+  focus              Focus terminal; acknowledge only after success.
+  checkout           Open checkout in a workspace tab; preserve old buffers.
+  back               Return to the previous tab; repeated use toggles tabs.
+  label              Edit selected agent's task label.
+  compose            Edit a prompt; Ctrl-S sends exact text once.
+  acknowledge        Mark selected agent's attention seen.
+  quiet              Toggle all agent notifications.
+  mute               Toggle selected workspace notifications.
+  refresh            Request asynchronous inventory refresh.
+  stop               Stop plugin; a later action starts it again.
+
+:checkhealth herde   Check dependencies and connectivity.
+
+SIDEBAR                                                     *herde-keys*
+
+Projects appear as a numbered alphabetical list. Workspaces sort by name
+under each project, with agents grouped inside. Linked worktrees share a
+project when Herdr supplies repository metadata; otherwise checkout paths
+define the groups. The numbers are display positions; actions use stable IDs.
+
+  j/k       Select row.               h/l       Collapse/expand workspace.
+  Enter     Focus/expand.             P         Preview output.
+  p         Compose.                  o         Open checkout.
+  b         Back to previous tab. Also available as <leader>ab anywhere.
+  L         Task label.               a         Acknowledge attention.
+  i         Inbox.                    / or f    Agent picker.
+  r         Refresh (sidebar focused). q         Close.
+  <leader>ar refreshes from any window when using the LazyVim spec.
+
+INBOX
+
+  f         Cycle active/history/all. w         Toggle workspace filter.
+  m         Mute highlighted workspace notifications.
+  /         Fuzzy-search active attention events.
+  Enter/P/p/o/a act on the highlighted event's agent. q closes.
+
+PREVIEW
+
+  r refreshes, f toggles follow, Enter focuses terminal, p composes, q closes.
+  Reads never acknowledge attention or switch terminal focus.
+
+COMPOSER
+
+  Ctrl-S submits in normal or insert mode. q (normal) / Ctrl-Q (insert) closes
+  while retaining the draft. Target workspace and agent appear in the title.
+  Failed or uncertain submissions retain drafts. There is no automatic retry.
+
+ATTENTION                                              *herde-attention*
+
+Blocked agents create input requests. Acknowledgement does not resolve them;
+the backend must report a different known state. Completions require observed
+working activity followed by idle/done. Initial discovery and reconnection
+establish baselines without completion notifications. Polling can miss short
+turns between snapshots. Unknown/disconnected states never imply completion.
+
+Demo history is separate from live backend/session attention. Live totals
+are hidden while disconnected. Quiet/mute affects notifications, never the inbox. Successful terminal focus
+acknowledges events for that agent. Previewing and inbox browsing do not.
+
+CONFIGURATION                                             *herde-config*
+>
+  require('herde').setup({
+    backend = 'herdr',
+    herdr = { command = 'herdr' },
+    timeout = 10000,
+    poll = { visible = 2000, hidden = 10000, max_backoff = 60000 },
+    sidebar = { width = 38, position = 'right' }, -- or 'left'
+    ui = { border = 'rounded', icons = true },
+    preview = { lines = 120, max_bytes = 131072, height = 12, follow = false },
+    notifications = { enabled = true, blocked = true, completed = true,
+                      quiet = false },
+    picker = 'snacks',
+    fzf = {}, -- optional per-picker fzf-lua appearance options
+    history_limit = 200,
+  })
+<
+Optional herdr.session selects a local session; herdr.machine selects an
+existing saved remote profile. Do not combine them. Remote paths cannot be
+opened as local checkouts.
+
+picker='snacks' uses LazyVim's existing picker with no extra dependency.
+picker='auto' prefers Snacks, then fzf-lua, then vim.ui.select.
+picker='native' uses vim.ui.select. Optional picker='fzf-lua' requires both
+fzf-lua and fzf; explicit fzf mode reports missing dependencies.
+
+SNACKS PICKER                                               *herde-snacks*
+
+Agents, workspaces, and attention events use the existing Snacks search UI.
+Search uses your usual Snacks navigation keys. Enter in agent search focuses
+the Herdr pane; Ctrl-O opens a read-only terminal snapshot. Attention entries
+open snapshots for review, and workspace entries change the overview filter.
+Preview panes show captured terminal history, including old logs and errors.
+When Neovim runs separately, interact with the focused agent in the Herdr
+window. Demo backends preview on Enter because they cannot focus terminals.
+Closing Herde also closes its picker.
+Global Snacks configuration and colorscheme settings remain intact.
+
+FZF PICKERS                                                 *herde-fzf*
+
+Agents, workspaces, and attention events use searchable lists and an output
+preview. Enter focuses an agent (or previews an attention entry); Alt-Enter
+focuses; Alt-O opens a snapshot; Ctrl-O opens the checkout; Ctrl-P composes;
+Ctrl-A acknowledges. Workspace previews list their agents.
+Search matches workspace, name, kind, state, and task label. Internal identity
+tokens are hidden; duplicate display names remain distinct action targets.
+
+Herde passes per-picker options without calling fzf-lua.setup or registering
+a global vim.ui.select override. The user's global fzf-lua setup stays intact.
+The fzf table may override appearance (e.g. winopts.width and height), while
+identity parsing, actions, and preview behavior stay plugin-controlled.
+
+APPEARANCE                                                  *herde-theme*
+
+Windows use linked highlight groups with no fixed RGB colors. HerdeNormal links
+to NormalFloat; HerdeBorder to FloatBorder; HerdeWorkspace to Directory; status
+markers to DiagnosticInfo/DiagnosticWarn/DiagnosticOk. Muted metadata uses
+Comment and NonText. Links update with colorscheme changes and preserve custom
+Herde highlight definitions. ui.icons=false uses ASCII sidebar markers.
+
+API                                                          *herde-api*
+>
+  require('herde').compose({ selection = true })
+  require('herde').compose({ diagnostics = true })
+  require('herde').cycle(-1)
+  require('herde').statusline()
+  require('herde').workspace_statusline()
+<
+Selection context contains complete selected lines with path and line numbers.
+Global mappings are opt-in through examples/lazyvim.lua. Command actions are
+also module functions; use underscores for hyphens. next is cycle(), stop is
+teardown(), and acknowledge is ack().
+
+WORKSPACE STATUSLINE                                      *herde-statusline*
+
+The LazyVim spec adds Workspace: <name> to the bottom lualine bar beside the
+branch, preserving existing branch/filename components and colors. The field
+shows the checkout open in the current tab, independently of sidebar selection.
+An untracked tab uses the matching workspace or project directory. A known tab
+keeps its saved name while the backend is disconnected. workspace_statusline()
+exposes the field for manual lualine configuration; statusline() returns agent
+counts separately.
+
+DATA                                                        *herde-data*
+
+Metadata and JSON editor sessions live under stdpath('state')/herde; state_dir
+overrides this. One instance owns the writer lock, other instances use temporary
+metadata changes. Unknown/corrupt schema is not overwritten. Prompt drafts and
+transcripts are not saved. Named file windows/cursors/views restore across
+restarts; unsaved/unnamed buffers remain in their original tab during a switch.
+Herde does not back up unsaved content.
+
+An open sidebar follows the active tab when opening or returning from a
+workspace. The workspace editor keeps focus. The sidebar identifies the
+current checkout and shows a b return hint. Checkout notifications also show
+<leader>ab (back) and <leader>aa (overview). An intentionally closed sidebar
+stays closed across tab switches; <leader>aa reopens it in the active tab.
+
+Stable conversation identity is required for persistent agent labels. Agents
+without it receive temporary labels. Existing worktrees can be opened; creation
+and deletion of worktrees are outside this plugin's initial scope.
+
+TROUBLESHOOTING                                   *herde-troubleshooting*
+
+Missing agents: :checkhealth herde, then :Herde refresh (or <leader>ar).
+Manual refresh reports the backend error or refreshed inventory counts. Verify Herdr is reachable
+from this terminal. The plugin never starts/replaces a server automatically.
+
+Stale: last successful inventory is retained; errors back off. Read previews
+may be unavailable. Unknown means the backend cannot classify agent state.
+
+Prompt failed: inspect the actual terminal before resubmitting. Timeouts can
+mean a prompt was delivered. Blocked agents require terminal interaction.
+Start prompts with an introductory sentence if their first character is '-';
+the installed Herdr CLI does not document escaping leading flag characters.
+
+Live Herdr actions remain unverified where sandbox socket access is denied.
+See docs/backends.md for the verified schema, fixtures, and identity limits.
+Fzf-lua interaction remains unverified where the dependency could not be
+downloaded. Automated checks cover its documented interface with a stub and
+candidate filtering with the real fzf binary when available.
+
+ vim:tw=78:ts=8:ft=help:norl:

@@ -1,0 +1,9 @@
+*.log
+doc/tags
+.DS_Store
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+.herde-backups/
